@@ -289,6 +289,41 @@ path above; benchmark per §5.1.
 Rung 3 (decision; days): roofline comparison against Gate 1 and the kill
 criteria → adopt, fall back to vendor, or close.
 
+## 9. Rung-2 outcome (2026-10-25, RTX 5060 Laptop)
+
+Built as designed, with two measured corrections to the plan:
+
+- The "shared panels at N ≤ 128" line assumed A100/H100-class shared
+  memory (228 KB); this consumer part allows ~98 KB of dynamic shared per
+  block, so the shared-panel path covers N ≤ 112 and N = 128 runs the
+  global-panel block path.
+- Fusing the scale pass into the trailing-row update (one block sync per
+  column step instead of two) is the only fast-path deviation; the gate
+  was re-run after it.
+
+Gate: the mpmath harness passes on the GPU driver unchanged (the driver
+speaks the rung-1 case-file protocol) — 210 checks, observed max C = 32.000
+identical to the host path, on both the default kernel selection and with
+the block kernel forced. Kill 1 verdict: NOT triggered — the vendor
+baseline reaches only ~8–33% of this part's measured DGEMM FP64 rate, so
+headroom over `cublasDgetrfBatched` exists in principle. But the fused
+kernel as designed does not capture it: vendor/ours end-to-end ratios run
+0.2–1.05x across the sweep (one narrow parity cell at N = 32,
+W·D = 204800, where the vendor's separate gather/extract overhead
+dominates at small N; worst ~4.5x behind at N = 128 on the global-panel
+path). The bottleneck is the per-column-step block synchronization latency
+of the straightforward per-panel LU; closing the gap means a MAGMA-style
+blocked batched LU, which is Kill 2 territory (vendor's own algorithm
+class — no delta). Rung-3 decision: fall back to vendor for production;
+the fused kernel stays as the gated reference and the gather/extract
+kernels remain useful either way. Any future attempt starts from a blocked
+design, not from tuning this one. Machine-state caveat: three same-evening
+runs drifted up to ~2x in absolute time (thermally soaked laptop; the
+measured DGEMM rate moved 254 -> 119 GFLOP/s across runs) and the
+pre/post-fusion comparison is confounded by it; ratios are stabler than
+absolutes, and a pinned rerun is scheduled with the portfolio measurement
+day.
+
 Dependencies: Rung 1 has none beyond Eigen and mpmath. Any LDR code reuse
 depends on DQMC-3 clearing. Complex-valued support depends on the physics
 target; real arithmetic suffices for the Hubbard cases adjacent to the

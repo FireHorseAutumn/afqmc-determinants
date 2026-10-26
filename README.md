@@ -39,5 +39,37 @@ log|det|/sign accumulator, and signed log-sum-exp walker reduction;
 ensembles (ln|det| = -1000 flat and -800 spread, below the FP64 product
 range), exact-singularity detection, and the end-to-end pool path, with
 observed max C = 32 against the C ≤ 100 bound, zero sign mismatches, zero
-NaN/Inf, bitwise-identical reruns. Rung 2 (GPU fused gather + batched LU)
-has not started.
+NaN/Inf, bitwise-identical reruns.
+
+Rung 2 (GPU) landed the same day: `include/msd/overlap_gpu.cuh` — fused
+gather + batched LU, warp-per-determinant at N ≤ 32, block-per-determinant
+with shared panels at N ≤ 112 (this part's ~98 KB dynamic-shared ceiling;
+the design note's N ≤ 128 assumed A100/H100-class shared memory),
+global-panel block path above; plus the signed log-sum-exp walker-reduction
+kernel and the vendor-baseline pieces (standalone gather,
+`cublasDgetrfBatched`, log/sign extraction). `src/msdet_gpu.cu` speaks the
+rung-1 case-file protocol, so the mpmath gate runs against the GPU path
+unchanged — it passes on the default kernel selection and with the block
+kernel forced, at the identical observed max C = 32.000. CTest 4/4, zero
+build warnings.
+
+Measured (`benchmarks/bench_det.cu`, `data/afqmc_det_bench.json`; RTX 5060
+Laptop, K = 5N, D = 100N, median of 11 event-timed reps, raw reps in the
+JSON): the fused kernel loses to the vendor baseline
+(gather + `cublasDgetrfBatched` + extract) end-to-end at essentially every
+measured point — vendor/ours ratios 0.2–1.05x across N = 16–128, W·D =
+1.6e3–8.2e5, with one narrow parity cell (N = 32, W·D = 204800, where the
+vendor's separate gather/extract overhead dominates at small N). Kill 1 did
+NOT trigger: the vendor reaches only ~10–26% of this part's measured DGEMM
+FP64 rate, so headroom exists in principle — but the straightforward
+per-panel LU does not capture it; the bottleneck is per-column-step block
+synchronization latency, and closing it means a blocked batched LU (the
+vendor's own algorithm class; DESIGN.md §9 records the rung-3 decision:
+fall back to vendor, keep the fused kernel as the gated reference).
+Caveat: the three same-evening runs drifted up to ~2x in absolute time
+(thermally soaked laptop; the measured DGEMM rate itself moved 254 → 119
+GFLOP/s across runs), and the pre/post scale-update-fusion numbers are
+confounded by that drift — ratios are more stable than absolutes, and the
+definitive pinned rerun is scheduled with the portfolio's measurement day.
+N = 256 is unmeasured: the vendor path alone needs 27 GB of panel buffers
+at W = 1 on this 8 GB part.
