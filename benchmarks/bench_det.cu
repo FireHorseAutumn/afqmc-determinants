@@ -328,7 +328,7 @@ int main(int argc, char** argv) {
                                                  msd::gpu::kWarpsPerBlock - 1) /
                                                 msd::gpu::kWarpsPerBlock),
                                      msd::gpu::kBlockThreads>>>(
-              dc.d_lu, dc.d_pivots, dc.d_info, cg.N, dc.d_det_logabs,
+              dc.d_lu, dc.d_pivots, dc.d_info, cg.N, batch, dc.d_det_logabs,
               dc.d_det_sign);
         };
         vendor_all();
@@ -368,8 +368,8 @@ int main(int argc, char** argv) {
                                               1) /
                                              msd::gpu::kWarpsPerBlock),
                                          msd::gpu::kBlockThreads>>>(
-                  dc.d_lu, dc.d_pivots, dc.d_info, cg.N, dc.d_det_logabs,
-                  dc.d_det_sign);
+                  dc.d_lu, dc.d_pivots, dc.d_info, cg.N, batch,
+                  dc.d_det_logabs, dc.d_det_sign);
             },
             reps);
 

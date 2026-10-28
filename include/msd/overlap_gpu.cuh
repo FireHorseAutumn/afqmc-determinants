@@ -344,14 +344,17 @@ __global__ void gather_panels(const double* __restrict__ G, int K, int N,
 
 // Vendor baseline, part 2: log|det|/sign extraction from getrfBatched's
 // in-place LU factors (column-major) and 1-based pivot vector.
-// One warp per panel.
+// One warp per panel; warps with idx >= batch exit (idx is warp-uniform).
 __global__ void extract_logdet(const double* __restrict__ panels,
                                const int* __restrict__ pivots,
                                const int* __restrict__ info, int N,
+                               std::int64_t batch,
                                double* __restrict__ det_logabs,
                                int* __restrict__ det_sign) {
   const std::int64_t idx = blockIdx.x * kWarpsPerBlock + (threadIdx.x >> 5);
   const int lane = threadIdx.x & 31;
+  if (idx >= batch)
+    return;
   const double* P = panels + idx * (size_t)N * N;
   const int* pv = pivots + idx * N;
   double part = 0.0;

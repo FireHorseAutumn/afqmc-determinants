@@ -73,3 +73,13 @@ confounded by that drift — ratios are more stable than absolutes, and the
 definitive pinned rerun is scheduled with the portfolio's measurement day.
 N = 256 is unmeasured: the vendor path alone needs 27 GB of panel buffers
 at W = 1 on this 8 GB part.
+
+Max pass (2026-10-28): `extract_logdet` (the vendor-baseline extraction
+kernel) had no batch-tail guard — its warp-per-panel grid
+(ceil(batch / 4) blocks of kWarpsPerBlock = 4 warps) left tail warps with
+idx ≥ batch reading panels/pivots/info and writing det_logabs/det_sign
+out of bounds whenever batch was not a multiple of 4. Latent in-repo: the
+benchmark grid has D = 100N, so batch is always a multiple of 4. Fixed
+with the same `idx >= batch` guard `gather_lu_warp` already carries, and
+pinned by `tests/test_gpu_guard.cu` (sentinel-padded outputs for both
+warp-per-item kernels, red before the fix). CTest 4/4 → 5/5.

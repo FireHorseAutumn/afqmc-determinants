@@ -79,6 +79,11 @@ add_test(NAME mpmath_gpu_block COMMAND ${Python3_EXECUTABLE}
   $<TARGET_FILE:msdet_gpu> --force=block)
 set_tests_properties(mpmath_gpu_block PROPERTIES TIMEOUT 600)
 
+add_executable(test_gpu_guard tests/test_gpu_guard.cu)
+target_link_libraries(test_gpu_guard PRIVATE msd CUDA::cudart)
+target_compile_options(test_gpu_guard PRIVATE -Wall -Wextra)
+add_test(NAME gpu_guard COMMAND test_gpu_guard)
+
 string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
 
 add_executable(bench_det benchmarks/bench_det.cu)
