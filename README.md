@@ -55,24 +55,25 @@ build warnings.
 
 Measured (`benchmarks/bench_det.cu`, `data/afqmc_det_bench.json`; RTX 5060
 Laptop, K = 5N, D = 100N, median of 11 event-timed reps, raw reps in the
-JSON): the fused kernel loses to the vendor baseline
-(gather + `cublasDgetrfBatched` + extract) end-to-end at essentially every
-measured point — vendor/ours ratios 0.2–1.05x across N = 16–128, W·D =
-1.6e3–8.2e5, with one narrow parity cell (N = 32, W·D = 204800, where the
-vendor's separate gather/extract overhead dominates at small N). Kill 1 did
-NOT trigger: the vendor reaches only ~10–26% of this part's measured DGEMM
-FP64 rate, so headroom exists in principle — but the straightforward
-per-panel LU does not capture it; the bottleneck is per-column-step block
-synchronization latency, and closing it means a blocked batched LU (the
-vendor's own algorithm class; DESIGN.md §9 records the rung-3 decision:
-fall back to vendor, keep the fused kernel as the gated reference).
-Caveat: the three same-evening runs drifted up to ~2x in absolute time
-(thermally soaked laptop; the measured DGEMM rate itself moved 254 → 119
-GFLOP/s across runs), and the pre/post scale-update-fusion numbers are
-confounded by that drift — ratios are more stable than absolutes, and the
-definitive pinned rerun is scheduled with the portfolio's measurement day.
-N = 256 is unmeasured: the vendor path alone needs 27 GB of panel buffers
-at W = 1 on this 8 GB part.
+JSON; governor-pinned idle-machine rerun 2026-10-30, measured DGEMM FP64
+rate 252 GFLOP/s): the fused kernel loses to the vendor baseline
+(gather + `cublasDgetrfBatched` + extract) end-to-end at every measured
+point — vendor/ours ratios 0.26–0.48x across N = 16–128, W·D =
+1.6e3–8.2e5, worst 3.8x behind at N = 128 on the global-panel path. Kill 1
+did NOT trigger, but the margin narrowed: pinned, the vendor reaches
+14–61% of the measured DGEMM FP64 rate (the unpinned evening runs showed
+8–33%), so headroom exists in principle but is smaller than the drifted
+numbers suggested. The straightforward per-panel LU does not capture it;
+the bottleneck is per-column-step block synchronization latency, and
+closing it means a blocked batched LU (the vendor's own algorithm class;
+DESIGN.md §9 records the rung-3 decision: fall back to vendor, keep the
+fused kernel as the gated reference). The pinned rerun also resolved the
+one apparent parity cell: the unpinned runs showed vendor/ours = 1.05x at
+N = 32, W·D = 204800, but under pinning that cell is 0.48x — the parity
+was a thermal artifact (the vendor's getrf throttled ~4–5x under soak
+while the sync-latency-bound fused kernel barely moved; that asymmetry is
+itself evidence for the latency diagnosis). N = 256 is unmeasured: the
+vendor path alone needs 27 GB of panel buffers at W = 1 on this 8 GB part.
 
 Max pass (2026-10-28): `extract_logdet` (the vendor-baseline extraction
 kernel) had no batch-tail guard — its warp-per-panel grid

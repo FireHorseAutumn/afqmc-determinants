@@ -304,25 +304,24 @@ Built as designed, with two measured corrections to the plan:
 Gate: the mpmath harness passes on the GPU driver unchanged (the driver
 speaks the rung-1 case-file protocol) — 210 checks, observed max C = 32.000
 identical to the host path, on both the default kernel selection and with
-the block kernel forced. Kill 1 verdict: NOT triggered — the vendor
-baseline reaches only ~8–33% of this part's measured DGEMM FP64 rate, so
-headroom over `cublasDgetrfBatched` exists in principle. But the fused
-kernel as designed does not capture it: vendor/ours end-to-end ratios run
-0.2–1.05x across the sweep (one narrow parity cell at N = 32,
-W·D = 204800, where the vendor's separate gather/extract overhead
-dominates at small N; worst ~4.5x behind at N = 128 on the global-panel
-path). The bottleneck is the per-column-step block synchronization latency
-of the straightforward per-panel LU; closing the gap means a MAGMA-style
-blocked batched LU, which is Kill 2 territory (vendor's own algorithm
-class — no delta). Rung-3 decision: fall back to vendor for production;
-the fused kernel stays as the gated reference and the gather/extract
-kernels remain useful either way. Any future attempt starts from a blocked
-design, not from tuning this one. Machine-state caveat: three same-evening
-runs drifted up to ~2x in absolute time (thermally soaked laptop; the
-measured DGEMM rate moved 254 -> 119 GFLOP/s across runs) and the
-pre/post-fusion comparison is confounded by it; ratios are stabler than
-absolutes, and a pinned rerun is scheduled with the portfolio measurement
-day.
+the block kernel forced. Kill 1 verdict: NOT triggered — pinned
+(2026-10-30), the vendor baseline reaches 14–61% of this part's measured
+DGEMM FP64 rate (252 GFLOP/s), so headroom over `cublasDgetrfBatched`
+exists in principle, though less than the drifted evening runs suggested
+(8–33%). The fused kernel as designed does not capture it: pinned
+vendor/ours end-to-end ratios run 0.26–0.48x across the sweep (worst 3.8x
+behind at N = 128 on the global-panel path). The one apparent parity cell
+in the unpinned runs (N = 32, W·D = 204800, 1.05x) does not survive
+pinning (0.48x): under thermal soak the vendor's getrf throttled ~4–5x
+while the sync-latency-bound fused kernel barely moved. The bottleneck is
+the per-column-step block synchronization latency of the straightforward
+per-panel LU — the clock-asymmetry between the two paths is itself
+evidence for it; closing the gap means a MAGMA-style blocked batched LU,
+which is Kill 2 territory (vendor's own algorithm class — no delta).
+Rung-3 decision: fall back to vendor for production; the fused kernel
+stays as the gated reference and the gather/extract kernels remain useful
+either way. Any future attempt starts from a blocked design, not from
+tuning this one.
 
 Dependencies: Rung 1 has none beyond Eigen and mpmath. Any LDR code reuse
 depends on DQMC-3 clearing. Complex-valued support depends on the physics
